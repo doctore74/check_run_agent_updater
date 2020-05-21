@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# Christian Wirtz, doc@snowheaven.de, 2020-05
+#
+# https://github.com/doctore74/check_run_agent_updater
+#
+# Force a cmk-agent-update attempt without using the configured agent update interval.
+# A working Checkmk agent is required.
+#
+# Check https://<cmkserver>/<site>/run_agent_updater.html for my hostname.
+# If hostname found, run /usr/bin/cmk-update-agent.
+#
+# Requirements
+# - Place a file /opt/omd/sites/<SITE>/var/www/run_agent_updater.html
+# Syntax for run_agent_updater.html
+# hostname1
+# hostname2
+# ...
+#
+# - Set user credentials (USER/PASS)
+# - Set WEBURL to Checkmk site
+
+
+#set -x
+
+# CREATE A SPECIAL USER FOR THIS!!! (login needed)
+USER="guest"
+PASS="CHANGEME"
+
+WEBURL="https://CHANGEME/CHANGEME"
+FILE="run_agent_updater.html"
+
+# Prevent requeststorm
+WAITTIME=600 # 600s = 10min (time to next updateattempt if requested)
+
+# Runtime updater
+WAITFORUPDATER=30
+
+SERVICENAME="Check_MK_Agent_forced_update"
+STATE=3
+WAITMAX="/usr/bin/waitmax"
+CMKUPDATER="/usr/bin/cmk-update-agent"
+RESULTFILE="/tmp/cmk-update-agent"
+LASTRUNFILE="/tmp/cmk-update-agent-lastrun"
+
+URL="$WEBURL/$FILE"
+NOW=`date +%s`
+HOSTNAME=`hostname -s`
+
+
+# Get request
+RESULT=`$WAITMAX 10 /usr/bin/curl -s --insecure --basic --user $USER:$PASS $URL | grep -i $HOSTNAME`
+
+# Check if hostname is in FILE
+if [[ $HOSTNAME != $RESULT ]]; then
+    STATE=0
+    REQUEST=0
+    MSG="Hostname not found in $FILE, not authorized or timeout"
+else
+    STATE=1
+    REQUEST=1
+
+    # If no LASTRUNFILE peresent, touch one
+    if [[ ! -e "$LASTRUNFILE" ]]; then
+        `touch $LASTRUNFILE`
+        # Set timestamp now minus waittime
+        ((NOW2=$NOW-$WAITTIME-1))
+        `echo "$NOW2" > $LASTRUNFILE`
+    fi
+
+    LASTRUN=`echo $(cat $LASTRUNFILE)`
+    #echo "LASTRUN: >$LASTRUN<"
+
+    # Check if LASTRUNFILE contains integer (i.e. empty if first run)
+    if [[ -z "${num##*[!0-9]*}" ]]; then
+        ((DIFF=$NOW-$LASTRUN))
+        ((DIFFLEFT=$WAITTIME-($NOW-$LASTRUN)))
+        LASTRUN_DATE=`date -d @$LASTRUN`
+    else
+        echo "2 $SERVICENAME - Error in $LASTRUNFILE >$LASTRUN< (Integer expected)"
+        exit 2
+    fi
+
+    # Check if waittime is over
+    if [[ $WAITTIME -lt $DIFF ]] || [[ $FIRSTRUN ]]; then
+        `$WAITMAX $WAITFORUPDATER $CMKUPDATER -v > $RESULTFILE 2>&1`
+        RESULT=`echo $(cat $RESULTFILE)`
+
+        # Set timestamp of last run
+        `echo "$NOW" > $LASTRUNFILE`
+
+        MSG="cmk-update-agent has been executed. See long output for details. Next check in ${WAITTIME}s at the earliest\n$RESULT"
+    else
+        MSG="Hostname found in $FILE, but waittime is ${WAITTIME}s, last run: $LASTRUN_DATE, ${DIFF}s ago, ${DIFFLEFT}s to go"
+    fi
+
+fi
+
+# Add href
+MSG=" <a href='$URL' target='_blank'>$MSG</a> "
+
+echo "$STATE $SERVICENAME request=$REQUEST;;;; $MSG"
+
