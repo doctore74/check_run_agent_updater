@@ -3,7 +3,7 @@ Force a cmk-agent-update attempt without using the configured agent update inter
 
 checkmk
 https://checkmk.com/
-Successfully tested on checkmk RAW version 1.6.0 (stable)
+Successfully tested on checkmk RAW version 1.6.0 (stable) on CentOS 7
 
 A working Checkmk agent is required.
 
