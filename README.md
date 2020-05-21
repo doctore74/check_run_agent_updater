@@ -7,7 +7,9 @@ Successfully tested on checkmk RAW version 1.6.0 (stable)
 
 A working Checkmk agent is required.
 
+```
 Check https://<cmkserver>/<site>/run_agent_updater.html for my hostname.
+```
 
 If hostname found, run /usr/bin/cmk-update-agent.
 
