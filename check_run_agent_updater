@@ -27,7 +27,7 @@
 USER="guest"
 PASS="CHANGEME"
 
-WEBURL="https://CHANGEME/CHANGEME"
+WEBURL="https://<CMKHOST_CHANGEME>/<SITE_CHANGEME>"
 FILE="run_agent_updater.html"
 
 # Prevent requeststorm
